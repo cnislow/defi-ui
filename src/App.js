@@ -1,94 +1,175 @@
 import React, { useState, useEffect } from 'react';
 const ethers = require("ethers")
-// import { ethers } from "ethers";
 
 function App() {
   const[greet, setGreet] = useState('');
   const[balance, setBalance] = useState('');
   const [depositValue, setDepositValue] = useState('')
   const [greetingValue, setGreetingValue] = useState('')
+  const [isWalletConnected, setIsWalletConnected] = useState(false)
 
   const contractAddress = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
-  // A Web3Provider wraps a standard Web3 provider, which is
-  // what MetaMask injects as window.ethereum into each page
-  // const provider = new ethers.BrowserProvider(window.ethereum)
 
-  // The MetaMask plugin also allows signing transactions to
-  // send ether and pay to change state within the blockchain.
-  // For this, you need the account signer...
-  // const signer = provider.getSigner()
+  const ABI = [
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_greeting",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "deposit",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "greet",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_greeting",
+          "type": "string"
+        }
+      ],
+      "name": "setGreeting",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ];
 
-  let signer = null;
-
-  let provider;
-  
-  if (window.ethereum == null) {
-
-    // If MetaMask is not installed, we use the default provider,
-    // which is backed by a variety of third-party services (such
-    // as INFURA). They do not have private keys installed,
-    // so they only have read-only access
-    console.log("MetaMask not installed; using read-only defaults")
-    provider = ethers.getDefaultProvider()
-
-  } else {
-
-      // Connect to the MetaMask EIP-1193 object. This is a standard
-      // protocol that allows Ethers access to make all read-only
-      // requests through MetaMask.
-      provider = new ethers.BrowserProvider(window.ethereum)
+  const checkIfWalletIsConnected = async () => {
+    try {
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+        const account = accounts[0];
+        setIsWalletConnected(true);
+        console.log("Account Connected: ", account);
+      } else {
+        console.log("No Metamask detected");
+      }
+    } catch (error) {
+      console.log(error);
+    }
   }
 
-  //do inside a use effect so this pops up when the component loads
-  useEffect(() => {
-    const connectWallet = async () => {
-      // MetaMask requires requesting permission to connect users accounts
-      const accounts = await provider.send("eth_requestAccounts", []);
+  const getBalance = async () => {
+    try{
+        if(window.ethereum){
+            // read data
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            // const contract = new ethers.Contract(contractAddress, ABI, provider);
 
-      signer = await provider.getSigner();
-    
+            const balance = await provider.getBalance(contractAddress)
+            const balanceFormatted = ethers.formatEther(balance)
+            setBalance(balanceFormatted)
+        } else{
+            console.log("Ethereum object not found, install Metamask.");
+        }
+    } catch (error) {
+        console.log(error)
     }
+  }
 
-    const getBalance = async () => {
-      // Get the current balance of an account (by address or ENS name)
-      const balance = await provider.getBalance(contractAddress);
-      
-      // no longer need '.utils' in v6
-      const formattedBalance = ethers.formatEther(balance);
-      
-      setBalance(formattedBalance);
+  const getGreeting = async () => {
+    try{
+        if(window.ethereum){
+            // read data
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const contract = new ethers.Contract(contractAddress, ABI, provider);
+
+            const greeting = await contract.greet()
+            setGreet(greeting)
+        } else{
+            console.log("Ethereum object not found, install Metamask.");
+        }
+    } catch (error) {
+        console.log(error)
     }
-    
-    connectWallet().catch(console.error);
-
-    getBalance().catch(console.error);
-  });
-
-  const handleDepositChange = (e) => {
-    setDepositValue(e.target.value);
   }
 
   const handleGreetingChange = (e) => {
-    setGreetingValue(e.target.value);
+    setGreetingValue(e.target.value)
+  }
+  
+  const handleGreetingSubmit = async (e) => {
+    try{
+        e.preventDefault()
+        if(window.ethereum){
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const contract = new ethers.Contract(contractAddress, ABI, signer);
+
+            const greetingUpdate = await contract.setGreeting(greetingValue)
+            await greetingUpdate.wait()
+            setGreet(greetingValue)
+            setGreetingValue('')
+        } else {
+            console.log("Ethereum object not found, install Metamask.");
+        }
+    } catch (error) {
+        console.log(error)
+    }
+  } 
+
+  const handleDepositChange = (e) => {
+    setDepositValue(e.target.value)
   }
 
-  const handleDepositSubmit = (e) => {
-    e.preventDefault();
-    console.log(depositValue);
+  const handleDepositSubmit = async (e) => {
+    try{
+        e.preventDefault()
+        if(window.ethereum){
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const contract = new ethers.Contract(contractAddress, ABI, signer);
+
+            const ethValue = ethers.parseEther(depositValue)
+            const depositEth = await contract.deposit({value: ethValue})
+            await depositEth.wait()
+            const balance = await provider.getBalance(contractAddress)
+            const balanceFormatted = ethers.formatEther(balance)
+            setBalance(balanceFormatted)
+        } else {
+            console.log("Ethereum object not found, install Metamask.");
+        }
+    } catch (error) {
+        console.log(error)
+    }
   }
 
-  const handleGreetingSubmit = (e) => {
-    e.preventDefault();
-    console.log(greetingValue);
-  }
-
+  useEffect(() => {
+    checkIfWalletIsConnected();
+    getBalance();
+    getGreeting()
+  }, [isWalletConnected])
+  
   return (
     <div className="container">
       <div className="container"> 
         <div className="row mt-5">
           <div className="col">
-            <h3>Greetings</h3>
-            <p>Contract balance: {balance}</p>
+            <h3>Greetings: {greet}</h3>
+            <p>Contract balance: {balance} ETH</p>
           </div>
           <div className="col">
           <form onSubmit={handleDepositSubmit} className="mt-5">
